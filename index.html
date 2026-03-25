@@ -10,33 +10,29 @@
         .notebook { background: white; width: 100%; max-width: 500px; border: 8px solid #4db6ac; border-radius: 15px; padding: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); position: relative; }
         .clip { position: absolute; left: -25px; top: 100px; width: 40px; height: 80px; background: #ff9800; border-radius: 20px 0 0 20px; }
         
-        h2 { text-align: center; color: var(--primary); margin-bottom: 10px; }
-        .date-picker { text-align: center; margin-bottom: 15px; }
-        input[type="date"] { 
-    padding: 8px 15px; 
-    border: 2px solid #4db6ac; 
-    border-radius: 20px; 
-    font-family: inherit; 
-    color: #00796b;
-    font-weight: bold;
-    background: #fff;
-    width: auto;
-    outline: none;
-    cursor: pointer;
+        .notebook-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        h2 { color: var(--primary); margin: 0; flex: 1; text-align: center; padding-left: 70px; }
+        
+        .history-controls { display: flex; gap: 5px; }
+        .btn-hist { 
+            background: #e0f2f1; border: 1px solid #4db6ac; color: #00796b; 
+            border-radius: 5px; width: 32px; height: 32px; cursor: pointer; 
+            font-size: 1.1rem; display: flex; align-items: center; justify-content: center;
         }
-      
+        .btn-hist:disabled { opacity: 0.3; cursor: not-allowed; }
 
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .date-picker { text-align: center; margin-bottom: 15px; }
+        input[type="date"] { padding: 8px 15px; border: 2px solid #4db6ac; border-radius: 20px; font-weight: bold; color: #00796b; outline: none; }
+
+        table { width: 100%; border-collapse: collapse; }
         th { background: #fff3e0; padding: 10px; border: 1px solid #ddd; font-size: 0.85rem; }
         td { border: 1px solid #ddd; padding: 5px; }
-        
-        input { width: 100%; border: none; outline: none; background: transparent; padding: 8px 0; font-family: inherit; }
+        td input { width: 100%; border: none; outline: none; background: transparent; padding: 8px 0; font-family: inherit; }
         .amount-input { text-align: right; font-weight: bold; color: var(--primary); }
         
         .btn-add { background: #e0f2f1; color: #00796b; border: 1px dashed #00796b; width: 100%; padding: 8px; margin-top: 10px; cursor: pointer; border-radius: 5px; font-weight: bold; }
-        .btn-save { background: var(--primary); color: white; border: none; width: 100%; padding: 12px; margin-top: 15px; cursor: pointer; border-radius: 5px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn-save { background: var(--primary); color: white; border: none; width: 100%; padding: 12px; margin-top: 15px; cursor: pointer; border-radius: 5px; font-weight: bold; }
         .delete-btn { color: #ff5252; cursor: pointer; text-align: center; font-weight: bold; width: 30px; }
-        
         .total-row { background: #e0f2f1; font-weight: bold; }
     </style>
 </head>
@@ -44,7 +40,14 @@
 
 <div class="notebook">
     <div class="clip"></div>
-    <h2>BẢNG CHI TIÊU</h2>
+    
+    <div class="notebook-header">
+        <h2>BẢNG CHI TIÊU</h2>
+        <div class="history-controls">
+            <button class="btn-hist" id="undoBtn" onclick="undo()" title="Lùi lại">↩</button>
+            <button class="btn-hist" id="redoBtn" onclick="redo()" title="Tiến lên">↪</button>
+        </div>
+    </div>
     
     <div class="date-picker">
         <input type="date" id="currentDate" onchange="loadData()">
@@ -59,8 +62,7 @@
                 <th width="30px"></th>
             </tr>
         </thead>
-        <tbody id="tableBody">
-            </tbody>
+        <tbody id="tableBody"></tbody>
         <tfoot>
             <tr class="total-row">
                 <td>Tổng chi</td>
@@ -71,23 +73,71 @@
     </table>
 
     <button class="btn-add" onclick="addRow()">+ Thêm khoản chi mới</button>
-    <button class="btn-save" onclick="saveData()">LƯU </button>
+    <button class="btn-save" onclick="saveData()">LƯU</button>
 </div>
 
 <script>
-    document.getElementById('currentDate').valueAsDate = new Date();
+    let undoStack = [];
+    let redoStack = [];
 
-    // Hàm thêm một dòng mới để người dùng tự nhập
-    function addRow(name = '', amount = '', note = '') {
+    function saveState() {
+        const rows = [];
+        document.querySelectorAll('#tableBody tr').forEach(tr => {
+            rows.push({
+                name: tr.querySelector('.name-input').value,
+                amount: tr.querySelector('.amount-input').value,
+                note: tr.querySelector('.note-input').value
+            });
+        });
+        undoStack.push(JSON.stringify(rows));
+        redoStack = []; 
+        updateButtons();
+    }
+
+    function updateButtons() {
+        document.getElementById('undoBtn').disabled = undoStack.length <= 1;
+        document.getElementById('redoBtn').disabled = redoStack.length === 0;
+    }
+
+    function undo() {
+        if (undoStack.length > 1) {
+            redoStack.push(undoStack.pop());
+            renderState(undoStack[undoStack.length - 1]);
+        }
+    }
+
+    function redo() {
+        if (redoStack.length > 0) {
+            const state = redoStack.pop();
+            undoStack.push(state);
+            renderState(state);
+        }
+    }
+
+    function renderState(stateStr) {
+        const data = JSON.parse(stateStr);
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+        data.forEach(item => createRowUI(item.name, item.amount, item.note));
+        calculateTotal();
+        updateButtons();
+    }
+
+    function createRowUI(name = '', amount = '', note = '') {
         const tbody = document.getElementById('tableBody');
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td><input type="text" placeholder="Tên khoản..." class="name-input" value="${name}"></td>
-            <td><input type="number" placeholder="0" class="amount-input" value="${amount}" oninput="calculateTotal()"></td>
-            <td><input type="text" placeholder="..." class="note-input" value="${note}"></td>
-            <td class="delete-btn" onclick="this.parentElement.remove(); calculateTotal();">✕</td>
+            <td><input type="text" placeholder="..." class="name-input" value="${name}" onchange="saveState()"></td>
+            <td><input type="number" placeholder="0" class="amount-input" value="${amount}" oninput="calculateTotal()" onchange="saveState()"></td>
+            <td><input type="text" placeholder="..." class="note-input" value="${note}" onchange="saveState()"></td>
+            <td class="delete-btn" onclick="this.parentElement.remove(); calculateTotal(); saveState();">✕</td>
         `;
         tbody.appendChild(row);
+    }
+
+    function addRow() {
+        createRowUI();
+        saveState();
     }
 
     function calculateTotal() {
@@ -100,42 +150,28 @@
 
     function saveData() {
         const date = document.getElementById('currentDate').value;
-        const rows = [];
-        
-        document.querySelectorAll('#tableBody tr').forEach(tr => {
-            const name = tr.querySelector('.name-input').value;
-            const amount = tr.querySelector('.amount-input').value;
-            const note = tr.querySelector('.note-input').value;
-            if (name || amount) {
-                rows.push({ name, amount, note });
-            }
-        });
-
-        localStorage.setItem('dynamic_spend_' + date, JSON.stringify(rows));
+        const currentState = undoStack[undoStack.length - 1];
+        localStorage.setItem('dynamic_spend_' + date, currentState);
         alert('Đã lưu dữ liệu ngày ' + date);
     }
 
     function loadData() {
         const date = document.getElementById('currentDate').value;
         const savedData = JSON.parse(localStorage.getItem('dynamic_spend_' + date)) || [];
-        
         const tbody = document.getElementById('tableBody');
-        tbody.innerHTML = ''; // Xóa bảng cũ
+        tbody.innerHTML = '';
+        if (savedData.length === 0) createRowUI();
+        else savedData.forEach(item => createRowUI(item.name, item.amount, item.note));
         
-        if (savedData.length === 0) {
-            addRow(); // Nếu chưa có gì thì hiện 1 dòng trống
-        } else {
-            savedData.forEach(item => {
-                addRow(item.name, item.amount, item.note);
-            });
-        }
+        undoStack = [JSON.stringify(savedData.length ? savedData : [{name:'',amount:'',note:''}])];
+        redoStack = [];
         calculateTotal();
+        updateButtons();
     }
 
-    // Load dữ liệu lần đầu khi mở app
+    document.getElementById('currentDate').valueAsDate = new Date();
     loadData();
 </script>
 
 </body>
-  </html>
-  
+</html>
