@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sổ Chi Tiêu Linh Hoạt</title>
+    <style>
+        :root { --primary: #008080; --bg: #f0f8f8; }
+        body { font-family: sans-serif; background-color: var(--bg); padding: 10px; display: flex; justify-content: center; }
+        .notebook { background: white; width: 100%; max-width: 500px; border: 8px solid #4db6ac; border-radius: 15px; padding: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); position: relative; }
+        .clip { position: absolute; left: -25px; top: 100px; width: 40px; height: 80px; background: #ff9800; border-radius: 20px 0 0 20px; }
+        
+        h2 { text-align: center; color: var(--primary); margin-bottom: 10px; }
+        .date-picker { text-align: center; margin-bottom: 15px; }
+        input[type="date"] { 
+    padding: 8px 15px; 
+    border: 2px solid #4db6ac; 
+    border-radius: 20px; 
+    font-family: inherit; 
+    color: #00796b;
+    font-weight: bold;
+    background: #fff;
+    width: auto;
+    outline: none;
+    cursor: pointer;
+        }
+      
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #fff3e0; padding: 10px; border: 1px solid #ddd; font-size: 0.85rem; }
+        td { border: 1px solid #ddd; padding: 5px; }
+        
+        input { width: 100%; border: none; outline: none; background: transparent; padding: 8px 0; font-family: inherit; }
+        .amount-input { text-align: right; font-weight: bold; color: var(--primary); }
+        
+        .btn-add { background: #e0f2f1; color: #00796b; border: 1px dashed #00796b; width: 100%; padding: 8px; margin-top: 10px; cursor: pointer; border-radius: 5px; font-weight: bold; }
+        .btn-save { background: var(--primary); color: white; border: none; width: 100%; padding: 12px; margin-top: 15px; cursor: pointer; border-radius: 5px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .delete-btn { color: #ff5252; cursor: pointer; text-align: center; font-weight: bold; width: 30px; }
+        
+        .total-row { background: #e0f2f1; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="notebook">
+    <div class="clip"></div>
+    <h2>SỔ THU CHI ĐỘNG</h2>
+    
+    <div class="date-picker">
+        <input type="date" id="currentDate" onchange="loadData()">
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Khoản chi</th>
+                <th width="100px">Số tiền</th>
+                <th>Ghi chú</th>
+                <th width="30px"></th>
+            </tr>
+        </thead>
+        <tbody id="tableBody">
+            </tbody>
+        <tfoot>
+            <tr class="total-row">
+                <td>Tổng cộng</td>
+                <td id="totalValue" style="text-align: right;">0 đ</td>
+                <td colspan="2"></td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <button class="btn-add" onclick="addRow()">+ Thêm khoản chi mới</button>
+    <button class="btn-save" onclick="saveData()">LƯU SỔ TAY</button>
+</div>
+
+<script>
+    document.getElementById('currentDate').valueAsDate = new Date();
+
+    // Hàm thêm một dòng mới để người dùng tự nhập
+    function addRow(name = '', amount = '', note = '') {
+        const tbody = document.getElementById('tableBody');
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><input type="text" placeholder="Tên khoản..." class="name-input" value="${name}"></td>
+            <td><input type="number" placeholder="0" class="amount-input" value="${amount}" oninput="calculateTotal()"></td>
+            <td><input type="text" placeholder="..." class="note-input" value="${note}"></td>
+            <td class="delete-btn" onclick="this.parentElement.remove(); calculateTotal();">✕</td>
+        `;
+        tbody.appendChild(row);
+    }
+
+    function calculateTotal() {
+        let total = 0;
+        document.querySelectorAll('.amount-input').forEach(input => {
+            total += Number(input.value) || 0;
+        });
+        document.getElementById('totalValue').innerText = total.toLocaleString() + ' đ';
+    }
+
+    function saveData() {
+        const date = document.getElementById('currentDate').value;
+        const rows = [];
+        
+        document.querySelectorAll('#tableBody tr').forEach(tr => {
+            const name = tr.querySelector('.name-input').value;
+            const amount = tr.querySelector('.amount-input').value;
+            const note = tr.querySelector('.note-input').value;
+            if (name || amount) {
+                rows.push({ name, amount, note });
+            }
+        });
+
+        localStorage.setItem('dynamic_spend_' + date, JSON.stringify(rows));
+        alert('Đã lưu dữ liệu ngày ' + date);
+    }
+
+    function loadData() {
+        const date = document.getElementById('currentDate').value;
+        const savedData = JSON.parse(localStorage.getItem('dynamic_spend_' + date)) || [];
+        
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = ''; // Xóa bảng cũ
+        
+        if (savedData.length === 0) {
+            addRow(); // Nếu chưa có gì thì hiện 1 dòng trống
+        } else {
+            savedData.forEach(item => {
+                addRow(item.name, item.amount, item.note);
+            });
+        }
+        calculateTotal();
+    }
+
+    // Load dữ liệu lần đầu khi mở app
+    loadData();
+</script>
+
+</body>
+  </html>
+  
